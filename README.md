@@ -17,7 +17,6 @@ The game is **client-server**. A headless server owns the shared world (enemies,
 - [How to play](#how-to-play)
 - [Building from source](#building-from-source)
 - [Running the game](#running-the-game)
-- [Playing over the internet](#playing-over-the-internet)
 - [Command-line options](#command-line-options)
 - [How it works](#how-it-works)
 - [Project structure](#project-structure)
@@ -87,10 +86,10 @@ Each burst lasts 4 seconds and is shown on every player's screen.
 
 | Element | Burst effect |
 |---|---|
-| 🔥 **FIRE** | Defeats every enemy within 350 px |
-| 💧 **WATER** | Freezes the next moving platform ahead in place |
-| 🪨 **EARTH** | Raises a one-way stone bridge over the next goo pool |
-| 🌪️ **AIR** | Freezes every other player within 350 px (great for keeping teammates still) |
+| **FIRE** | Defeats every enemy within 350 px |
+| **WATER** | Freezes the next moving platform ahead in place |
+| **EARTH** | Raises a one-way stone bridge over the next goo pool |
+| **AIR** | Freezes every other player within 350 px (great for keeping teammates still) |
 
 ### The world
 
@@ -235,36 +234,6 @@ Press **Esc** in each game window, then **Ctrl-C** in the server's terminal. To 
 ```bash
 pkill -x elemental_client; pkill -x elemental_server
 ```
-
----
-
-## Playing over the internet
-
-Every player needs to build the client (see [Building from source](#building-from-source)). Then pick one of these free options for the server:
-
-### Option A: Tailscale (easiest)
-
-[Tailscale](https://tailscale.com/) creates a private network between your devices and is free for personal use. No router or firewall setup is needed.
-
-1. Every player installs Tailscale and joins the same tailnet. The host can invite friends or share their machine with them.
-2. The host runs `./build/elemental_server`.
-3. Players run `./build/elemental_client --host <host's Tailscale IP, e.g. 100.x.y.z>`.
-
-### Option B: A free cloud server (always on)
-
-Run the server on a free-tier Linux VM (for example Oracle Cloud *Always Free* or Google Cloud's *e2-micro* free tier):
-
-1. Create an Ubuntu VM, install the [Linux dependencies](#linux-debian--ubuntu), clone the repository and build it. The server is headless but still links against SDL3.
-2. Open **TCP ports 7555, 7556 and 7600–7603** in the cloud provider's firewall/security rules (and in `ufw` / `iptables` on the VM if enabled).
-3. Keep the server running after you log out:
-   ```bash
-   nohup ./build/elemental_server > server.log 2>&1 &
-   ```
-4. Players connect with `./build/elemental_client --host <VM public IP>`.
-
-### Option C: Port forwarding on your home router
-
-Forward TCP ports 7555, 7556 and 7600–7603 to the machine running the server, then share your public IP with friends. This works, but it exposes those ports to the internet; Tailscale is safer.
 
 ---
 
