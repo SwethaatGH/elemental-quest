@@ -7,6 +7,23 @@ project(Team16Engine CXX)
 find_package(SDL3 REQUIRED)
 find_package(SDL3_image REQUIRED)
 
+# Browser builds (Emscripten): the client only. No ZeroMQ - engine::Client speaks
+# WebSocket to the gateway in server/gateway - and no server or peer code.
+if(EMSCRIPTEN)
+    add_library(engine STATIC
+        src/Engine.cpp src/Entity.cpp src/Physics.cpp src/Input.cpp src/Collision.cpp
+        src/Scaling.cpp src/Timeline.cpp src/JobSystem.cpp src/ClientWeb.cpp src/World.cpp
+        src/Serialize.cpp src/Components.cpp src/Systems.cpp src/Snapshot.cpp src/NetScene.cpp
+        src/Event.cpp src/EventManager.cpp src/EventSystems.cpp src/Replay.cpp)
+    target_compile_features(engine PUBLIC cxx_std_17)
+    target_include_directories(engine PUBLIC include)
+    # The event manager reports throwing handlers instead of crashing, so keep exceptions on
+    target_compile_options(engine PUBLIC -sDISABLE_EXCEPTION_CATCHING=0)
+    target_link_options(engine PUBLIC -sDISABLE_EXCEPTION_CATCHING=0 -lwebsocket.js)
+    target_link_libraries(engine PUBLIC SDL3_image::SDL3_image SDL3::SDL3)
+    return()
+endif()
+
 # ZeroMQ: libzmq is the library, cppzmq its header-only C++ binding.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZMQ REQUIRED IMPORTED_TARGET libzmq)

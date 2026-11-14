@@ -15,3 +15,8 @@ m4.tex
 smaniva4_GEF_M4.pdf
 engine/engine_m4_team.pdf
 writeup_images/
+
+# Web build outputs
+build-web/
+.web-deps/
+node_modules/

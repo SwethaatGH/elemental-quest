@@ -1,0 +1,17 @@
+{
+  "name": "elemental-quest-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rooms and WebSocket relay that let browsers play Elemental Quest",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "8.22.0",
+    "zeromq": "6.8.0"
+  }
+}

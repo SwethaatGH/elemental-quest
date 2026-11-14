@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Elemental Quest</title>
+  <meta name="description" content="A cooperative temple platformer for 1 to 4 players, in your browser.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <link rel="icon" href="img/player_fire.png">
+  <link rel="stylesheet" href="style.css">
+  <script src="config.js"></script>
+</head>
+<body>
+  <!-- Lobby -->
+  <main id="lobby">
+    <header class="title">
+      <h1>
+        <span class="el-fire">E</span><span class="el-water">L</span><span class="el-earth">E</span><span class="el-air">M</span>ENTAL
+        <br>QUEST
+      </h1>
+      <p class="tagline">A co-op temple platformer for 1&ndash;4 players</p>
+    </header>
+
+    <ul class="heroes" aria-label="The four elements">
+      <li><img src="img/player_fire.png" alt=""><span class="el-fire">FIRE</span></li>
+      <li><img src="img/player_water.png" alt=""><span class="el-water">WATER</span></li>
+      <li><img src="img/player_earth.png" alt=""><span class="el-earth">EARTH</span></li>
+      <li><img src="img/player_air.png" alt=""><span class="el-air">AIR</span></li>
+    </ul>
+
+    <p id="server-status" class="status waking" role="status">
+      <span class="gems" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span id="server-status-text">Waking the temple&hellip;</span>
+    </p>
+
+    <section class="panel" id="choose">
+      <div class="card">
+        <h2>Start a quest</h2>
+        <p>Create a room and share its code with up to 3 friends. Playing solo works too.</p>
+        <button id="create" class="btn btn-fire" disabled>Create room</button>
+      </div>
+      <div class="divider" aria-hidden="true">or</div>
+      <form class="card" id="join-form">
+        <h2>Join a quest</h2>
+        <label for="code">Room code</label>
+        <input id="code" name="code" maxlength="4" autocomplete="off" spellcheck="false" placeholder="ABCD" inputmode="text">
+        <button id="join" class="btn btn-water" type="submit" disabled>Join room</button>
+      </form>
+    </section>
+
+    <section class="panel hidden" id="ready">
+      <div class="card wide">
+        <h2>Your room</h2>
+        <p class="room-code" id="room-code">&mdash;&mdash;&mdash;&mdash;</p>
+        <p>Friends join with this code, or with this link:</p>
+        <div class="share">
+          <input id="share-link" readonly aria-label="Link to this room">
+          <button id="copy" class="btn btn-small">Copy</button>
+        </div>
+        <p class="hint">Elements are given in join order: FIRE, WATER, EARTH, then AIR.</p>
+        <button id="enter" class="btn btn-earth">Enter the temple</button>
+        <button id="back" class="btn btn-ghost">Back</button>
+      </div>
+    </section>
+
+    <p id="message" class="message hidden" role="alert"></p>
+
+    <section class="panel controls">
+      <div class="card wide">
+        <h2>How to play</h2>
+        <p>Collect your element's gems and reach <em>your</em> temple door at the far right. The level is complete when everyone is home.</p>
+        <dl class="keys">
+          <dt><kbd>A</kbd><kbd>D</kbd> / <kbd>&larr;</kbd><kbd>&rarr;</kbd></dt><dd>Move</dd>
+          <dt><kbd>Space</kbd> / <kbd>W</kbd> / <kbd>&uarr;</kbd></dt><dd>Jump</dd>
+          <dt><kbd>M</kbd> + <kbd>&larr;</kbd>/<kbd>&rarr;</kbd></dt><dd>Air dash (press together)</dd>
+          <dt><kbd>J</kbd> + <kbd>K</kbd></dt><dd>Elemental burst (press together)</dd>
+          <dt><kbd>R</kbd></dt><dd>Back to your checkpoint</dd>
+          <dt><kbd>H</kbd></dt><dd>Help, in game</dd>
+        </dl>
+        <ul class="bursts">
+          <li><b class="el-fire">FIRE</b> burns nearby enemies</li>
+          <li><b class="el-water">WATER</b> freezes a moving platform</li>
+          <li><b class="el-earth">EARTH</b> bridges the goo</li>
+          <li><b class="el-air">AIR</b> holds teammates still</li>
+        </ul>
+      </div>
+    </section>
+
+    <footer>
+      <a href="https://github.com/SwethaatGH/elemental-quest">Source on GitHub</a>
+    </footer>
+  </main>
+
+  <!-- Game -->
+  <section id="game" class="hidden" aria-label="Game">
+    <div class="bar">
+      <span class="bar-title">ELEMENTAL QUEST</span>
+      <span class="bar-room">Room <b id="bar-code"></b></span>
+      <span class="bar-element" id="bar-element"></span>
+      <button id="leave" class="btn btn-small btn-ghost">Leave</button>
+    </div>
+    <div class="stage">
+      <canvas id="canvas" tabindex="-1" oncontextmenu="event.preventDefault()"></canvas>
+      <div id="overlay" class="overlay">
+        <div class="overlay-box">
+          <span class="gems" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <p id="overlay-text">Loading the temple&hellip;</p>
+          <div class="progress"><div id="progress-bar"></div></div>
+          <button id="overlay-action" class="btn btn-fire hidden">Back to the lobby</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>

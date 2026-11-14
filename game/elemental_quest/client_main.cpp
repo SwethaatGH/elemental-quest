@@ -13,6 +13,10 @@
 
 #include <SDL3_image/SDL_image.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <algorithm>
 #include <atomic>
 #include <climits>
@@ -32,6 +36,13 @@
 using namespace engine;
 using namespace ed;
 
+#ifdef __EMSCRIPTEN__
+// Tells the page around the game what happened: "joined", "error", "dropped" or "ended"
+EM_JS(void, PageNotify, (const char *kind, const char *text), {
+    if (Module.eqNotify) Module.eqNotify(UTF8ToString(kind), UTF8ToString(text));
+});
+#endif
+
 namespace {
 Engine *g_engine = nullptr;
 extern "C" void OnQuitSignal(int) {
@@ -39,6 +50,7 @@ extern "C" void OnQuitSignal(int) {
 }
 
 constexpr double kInvulnerableSeconds = 1.5;
+constexpr int kWebWidth = 1280, kWebHeight = 720;  // the browser canvas; the page scales it to fit
 constexpr int64_t kPlayerClockTic = 1000;
 constexpr Uint64 kBannerMs = 2600;
 constexpr Uint64 kStompWaitMs = 1000;  // an unconfirmed stomp shows the enemy again after this
@@ -77,6 +89,7 @@ struct Options {
     bool eventLog = false;
     bool noDeathCam = false;
     std::string host = "localhost";  // the machine running elemental_server
+    std::string connect;  // browser builds: the gateway's WebSocket URL, room included
     NetOptions net;
 };
 
@@ -88,6 +101,8 @@ bool ParseOptions(int argc, char **argv, Options &o, std::string &error) {
         const std::string a = argv[i];
         if (a == "--host" && hasValue) {
             o.host = argv[++i];
+        } else if (a == "--connect" && hasValue) {
+            o.connect = argv[++i];
         } else if (a == "--scale" && hasValue) {
             o.scale = std::atof(argv[++i]);
         } else if (a == "--window" && hasValue) {
@@ -172,6 +187,12 @@ public:
     }
 
     void Update(float dt) {
+#ifdef __EMSCRIPTEN__
+        if (!notifiedDrop_ && net_.GetClient().Dropped()) {
+            notifiedDrop_ = true;
+            PageNotify("dropped", net_.LastError().c_str());
+        }
+#endif
         HandleKeys();
         std::lock_guard<std::mutex> lock(engine_.GetWorldMutex());
         World &world = net_.GetWorld();
@@ -1084,6 +1105,7 @@ private:
     SDL_Color bannerColor_{255, 255, 255, 255};
     Uint64 bannerUntil_ = 0;
     Uint64 autoshotAtMs_ = 0;
+    bool notifiedDrop_ = false;
     Uint64 trafficLogStart_ = SDL_GetTicks();
     struct {
         uint64_t out = 0, in = 0, bytesIn = 0, raised = 0, handled = 0;
@@ -1091,6 +1113,77 @@ private:
 };
 }
 
+#ifdef __EMSCRIPTEN__
+// In a browser the page calls main() once a room is chosen. Nothing may block, and
+// main() returns before the game starts, so everything below lives on the heap.
+namespace {
+struct WebSession {
+    Options options;
+    SceneClient *net = nullptr;
+    Engine *engine = nullptr;
+    Art *art = nullptr;
+    Game *game = nullptr;
+};
+WebSession *g_web = nullptr;
+
+void StartWebGame() {
+    WebSession &w = *g_web;
+    const int id = w.net->Id();
+    if (id < 0 || id >= kMaxPlayers) {
+        PageNotify("error", "The server gave an unexpected player number.");
+        return;
+    }
+    w.engine = new Engine;
+    if (!w.engine->Init(Format("Elemental Quest - %s", ElementName(id)).c_str(), kWebWidth, kWebHeight)) {
+        PageNotify("error", "Could not start the graphics. Try another browser.");
+        return;
+    }
+    w.engine->GetGameTime().SetScale(w.options.scale);
+    w.art = new Art;
+    w.art->Load(w.engine->GetRenderer());
+    g_engine = w.engine;
+    w.game = new Game(*w.engine, *w.net, *w.art, w.options);
+    w.engine->SetOnWebStop([] {
+        g_web->net->Leave();
+        PageNotify("ended", "");
+    });
+    PageNotify("joined", ElementName(id));
+    Game *game = w.game;
+    w.engine->Run([game](float dt) { game->Update(dt); }, [game]() { game->Render(); },
+                  [game](float dt) { game->Background(dt); });
+}
+
+// One call per frame until the server has answered the join
+void WaitForWelcome() {
+    const Client::JoinState state = g_web->net->GetClient().GetJoinState();
+    if (state == Client::JoinState::Connecting) return;
+    emscripten_cancel_main_loop();
+    if (state == Client::JoinState::Joined) StartWebGame();
+    else PageNotify("error", g_web->net->LastError().c_str());
+}
+}  // namespace
+
+int main(int argc, char **argv) {
+    g_web = new WebSession;
+    std::string error;
+    if (!ParseOptions(argc, argv, g_web->options, error) || g_web->options.connect.empty()) {
+        PageNotify("error", error.empty() ? "No game server to connect to." : error.c_str());
+        return 1;
+    }
+    RegisterGameComponents();
+    Client::Config netConfig;
+    netConfig.webSocketUrl = g_web->options.connect;
+    netConfig.sendIntervalSeconds = 1.0f / 60.0f;
+    netConfig.worldQueue = 64;
+    g_web->net = new SceneClient(netConfig, g_web->options.net);
+    if (!g_web->net->Join()) {
+        PageNotify("error", g_web->net->LastError().c_str());
+        return 1;
+    }
+    emscripten_set_main_loop(WaitForWelcome, 0, false);
+    return 0;
+}
+#else
 int main(int argc, char **argv) {
     setvbuf(stdout, nullptr, _IOLBF, 0);
     Options options;
@@ -1154,3 +1247,4 @@ int main(int argc, char **argv) {
     engine.Shutdown();
     return 0;
 }
+#endif  // __EMSCRIPTEN__

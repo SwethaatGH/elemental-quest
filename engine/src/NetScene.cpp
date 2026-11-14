@@ -154,6 +154,7 @@ void NetStats::ResetLatency() {
 }
 
 // --- SceneServer -----------------------------------------------------------------
+#ifndef __EMSCRIPTEN__
 
 SceneServer::SceneServer(Engine &engineRef, Server::Config config, NetOptions opts)
     : engine(engineRef), server(engineRef, config), options(opts), downstream(opts.Downstream()) {}
@@ -360,6 +361,8 @@ void SceneServer::ApplyInbox() {
     applying.clear();
 }
 
+#endif  // __EMSCRIPTEN__
+
 // --- SceneClient -----------------------------------------------------------------
 
 namespace {
@@ -495,17 +498,21 @@ void SceneClient::TickEvents() {
             eventOut.erase(eventOut.begin(), eventOut.begin() + count);
         }
     }
-    auto fail = [&](const std::string &message) {
+    auto fail = [this](const std::string &message) {
         std::lock_guard<std::mutex> lock(eventMutex);
         eventError = message;
         eventFailed = true;
         ++stats.eventGaps;
     };
-    if (!sending.empty()) {
+    // Replies are handled in callbacks: at once natively, a few frames later in a browser.
+    // One send and one poll at most in flight, so the stream keeps its order either way.
+    if (!sending.empty() && !sendInFlight) {
         const std::string payload = "EVENT_SEND " + std::to_string(sendFirst) + "\n" + EncodeEvents(sending, options.encoding);
         if (payload.size() > EVENT_BYTES) { fail("event batch exceeds wire limit"); return; }
-        std::string reply;
-        if (client.Request(payload, reply)) {
+        sendInFlight = true;
+        client.RequestAsync(payload, [this, fail](bool ok, const std::string &reply) {
+            sendInFlight = false;
+            if (!ok) { ++stats.eventRetries; return; }
             std::istringstream in(reply);
             std::string verb;
             uint64_t ack = 0, rejected = 0;
@@ -517,13 +524,17 @@ void SceneClient::TickEvents() {
             sendFirst += count;
             stats.eventsOut += count;
             stats.eventsRejected = rejected;
-        } else ++stats.eventRetries;
+        });
     }
-    if (Timeline::RealTimeNow() >= nextEventPoll) {
+    if (!pollInFlight && Timeline::RealTimeNow() >= nextEventPoll) {
         const int64_t started = Timeline::RealTimeNow();
         ++stats.eventPolls;
-        std::string reply;
-        if (client.Request("EVENT_POLL " + std::to_string(receivedUntil), reply)) {
+        pollInFlight = true;
+        client.RequestAsync("EVENT_POLL " + std::to_string(receivedUntil), [this, fail, started](bool ok, const std::string &reply) {
+            pollInFlight = false;
+            // Schedule from completion, including failed requests
+            nextEventPoll = Timeline::RealTimeNow() + EVENT_POLL_MICROS;
+            if (!ok) { ++stats.eventRetries; return; }
             const int64_t received = Timeline::RealTimeNow();
             const auto newline = reply.find('\n');
             std::istringstream header(reply.substr(0, newline));
@@ -549,9 +560,7 @@ void SceneClient::TickEvents() {
                 scheduled.emplace_back(e.originTime * perTic, std::move(e));
                 receivedUntil = sequence;
             }
-        } else ++stats.eventRetries;
-        // Schedule from completion, including failed requests
-        nextEventPoll = Timeline::RealTimeNow() + EVENT_POLL_MICROS;
+        });
     }
     if (!sampleWall) return;
     const double serverNow = serverSample + (Timeline::RealTimeNow() - sampleWall) * 1e-6 * serverRate;
@@ -564,6 +573,7 @@ void SceneClient::TickEvents() {
 }
 
 // --- ScenePeer -------------------------------------------------------------------
+#ifndef __EMSCRIPTEN__
 
 namespace {
 constexpr const char *TOPIC_SNAP = "SNAP";
@@ -763,4 +773,5 @@ void ScenePeer::Tick(float dt, std::mutex &worldMutex) {
         world.Flush();
     }
 }
+#endif  // __EMSCRIPTEN__
 }  // namespace engine

@@ -6,6 +6,10 @@
 #include <chrono>
 #include <thread>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 namespace engine {
 namespace {
 // Cap the frame delta so a stall cannot carry a fast object through a wall
@@ -137,6 +141,54 @@ void Engine::Present() {
     SDL_RenderPresent(renderer);
 }
 
+#ifdef __EMSCRIPTEN__
+// A browser owns the loop: one call per animation frame, and no second thread.
+// Run() returns at once; everything the callbacks use must outlive it (heap, not stack)
+namespace {
+struct WebLoop {
+    Engine *engine;
+    std::function<void(float)> update, background;
+    std::function<void()> render, onStop;
+    double lastTime = 0, backgroundLastTime = 0;
+};
+
+void WebFrame(void *arg) {
+    WebLoop &loop = *static_cast<WebLoop *>(arg);
+    loop.engine->RunOneFrame(loop.update, loop.render, loop.background, loop.lastTime, loop.backgroundLastTime);
+    if (!loop.engine->IsRunning()) {
+        emscripten_cancel_main_loop();
+        if (loop.onStop) loop.onStop();
+    }
+}
+}  // namespace
+
+void Engine::RunOneFrame(const std::function<void(float)> &update, const std::function<void()> &render,
+                         const std::function<void(float)> &backgroundUpdate, double &lastTime,
+                         double &backgroundLastTime) {
+    ++iterationCount;
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_EVENT_QUIT) running = false;
+    }
+    // The network first, as the worker thread would have done meanwhile
+    if (backgroundUpdate) backgroundUpdate(FrameDelta(gameTime, backgroundLastTime));
+    const float dt = SmoothDelta(FrameDelta(gameTime, lastTime));
+    Input::Update();
+    update(dt);
+    Clear();
+    render();
+    Present();
+}
+
+void Engine::Run(const std::function<void(float)> &update,
+                 const std::function<void()> &render,
+                 const std::function<void(float)> &backgroundUpdate) {
+    running = true;
+    auto *loop = new WebLoop{this, update, backgroundUpdate, render, onWebStop};
+    loop->lastTime = loop->backgroundLastTime = gameTime.GetSeconds();
+    emscripten_set_main_loop_arg(WebFrame, loop, 0, false);
+}
+#else
 void Engine::Run(const std::function<void(float)> &update,
                  const std::function<void()> &render,
                  const std::function<void(float)> &backgroundUpdate) {
@@ -184,6 +236,7 @@ void Engine::Run(const std::function<void(float)> &update,
         worker.join();
     }
 }
+#endif  // __EMSCRIPTEN__
 
 void Engine::RunHeadless(const std::function<void(float)> &update, int tickHz,
                          const std::function<void(float)> &backgroundUpdate) {

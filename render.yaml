@@ -1,0 +1,15 @@
+# Render blueprint: the Elemental Quest game server (Dashboard > New > Blueprint).
+services:
+  - type: web
+    name: elemental-quest
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      # Only the game's website may create rooms and connect
+      - key: ALLOWED_ORIGINS
+        value: https://swethaatgh.github.io
+      # A free instance has a small slice of one CPU: keep the number of rooms modest
+      - key: MAX_ROOMS
+        value: "4"

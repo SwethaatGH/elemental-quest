@@ -35,14 +35,18 @@ void Client::Leave() {
 }
 
 // The session goes first
-bool Client::Exchange(const std::string &payload, std::string &reply) {
+std::string Client::Framed(const std::string &payload) const {
     std::string framed;
     framed.reserve(payload.size() + 24);
     framed += '\x01';
     framed += std::to_string(session);
     framed += '\n';
     framed += payload;
-    if (!channel.Send(framed) || !channel.Receive(reply)) {
+    return framed;
+}
+
+bool Client::Exchange(const std::string &payload, std::string &reply) {
+    if (!channel.Send(Framed(payload)) || !channel.Receive(reply)) {
         // A timed-out REQ socket cannot send again
         channel = net::Socket(net::SocketType::Request);
         channel.SetReceiveTimeoutMs(config.timeoutMs);
@@ -59,6 +63,7 @@ bool Client::Exchange(const std::string &payload, std::string &reply) {
 }
 
 bool Client::Join() {
+    joinState = JoinState::Failed;  // until the end of this function
     net::Socket join(net::SocketType::Request);
     join.SetReceiveTimeoutMs(config.timeoutMs);
     if (!join.Connect("tcp://" + config.host + ":" + std::to_string(config.joinPort))) {
@@ -94,11 +99,18 @@ bool Client::Join() {
         lastError = world.LastError();
         return false;
     }
+    joinState = JoinState::Joined;
     return true;
 }
 
 bool Client::Request(const std::string &request, std::string &reply) {
     return Exchange(request, reply);
+}
+
+void Client::RequestAsync(const std::string &request, ReplyHandler onReply) {
+    std::string reply;
+    const bool ok = Exchange(request, reply);
+    if (onReply) onReply(ok, reply);
 }
 
 bool Client::Tick(float dt,

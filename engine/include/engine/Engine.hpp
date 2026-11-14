@@ -83,6 +83,16 @@ public:
 
     // Ends the loop from either thread
     void Stop() { running = false; }
+    bool IsRunning() const { return running; }
+
+#ifdef __EMSCRIPTEN__
+    // Browser builds: Run() returns at once and the page drives the frames.
+    // This runs once the loop stops (Esc, or the game asking to quit)
+    void SetOnWebStop(std::function<void()> callback) { onWebStop = std::move(callback); }
+    void RunOneFrame(const std::function<void(float)> &update, const std::function<void()> &render,
+                     const std::function<void(float)> &backgroundUpdate, double &lastTime,
+                     double &backgroundLastTime);
+#endif
 
 private:
     SDL_Window *window = nullptr;
@@ -110,6 +120,11 @@ private:
     std::atomic<int64_t> iterationCount{0};
     Timeline iterationTime{iterationCount, 1};  // declared after the counter it reads
 
+#ifdef __EMSCRIPTEN__
+    JobSystem jobs{0};  // no threads in a browser: jobs run inline
+    std::function<void()> onWebStop;
+#else
     JobSystem jobs{DEFAULT_JOB_WORKERS};
+#endif
 };
 }  // namespace engine

@@ -2,8 +2,10 @@
 
 #include "engine/Client.hpp"
 #include "engine/EventManager.hpp"
+#ifndef __EMSCRIPTEN__  // browsers run only the client
 #include "engine/Peer.hpp"
 #include "engine/Server.hpp"
+#endif
 #include "engine/Snapshot.hpp"
 #include "engine/Systems.hpp"
 #include "engine/World.hpp"
@@ -69,6 +71,7 @@ private:
     static constexpr size_t MAX = 4096;
 };
 
+#ifndef __EMSCRIPTEN__
 // The authoritative server
 class SceneServer {
 public:
@@ -139,6 +142,7 @@ private:
 
     ObjectFilter relay;  // under the world mutex
 };
+#endif  // __EMSCRIPTEN__
 
 // One client's view of the server's World, plus its own player
 class SceneClient {
@@ -200,10 +204,13 @@ private:
     std::deque<std::pair<double, Event>> scheduled;
     double serverSample = 0, serverRate = 0;
     int64_t sampleWall = 0, nextEventPoll = 0;  // wall time; polls capped at 30 Hz
+    // Requests whose replies have not arrived yet (only ever true in a browser)
+    bool sendInFlight = false, pollInFlight = false;
     bool eventFailed = false;
     std::string eventError;
 };
 
+#ifndef __EMSCRIPTEN__
 // A peer: no server
 class ScenePeer {
 public:
@@ -263,4 +270,5 @@ private:
     std::set<uint32_t> shared;
     std::vector<Event> eventOut;  // handled here, not yet published
 };
+#endif  // __EMSCRIPTEN__
 }  // namespace engine

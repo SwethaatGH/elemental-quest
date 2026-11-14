@@ -4,6 +4,7 @@
 #include "engine/Engine.hpp"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -16,11 +17,21 @@ int main(int argc, char **argv) {
     options.encoding = Encoding::Binary;
     std::string error;
     bool eventLog = false;
+    // The web gateway runs one server per room, each on its own ports
+    int portBase = kJoinPort;
+    int clientTimeoutMs = 3000;
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--event-log") == 0) eventLog = true;
+        else if (std::strcmp(argv[i], "--port-base") == 0 && i + 1 < argc) portBase = std::atoi(argv[++i]);
+        else if (std::strcmp(argv[i], "--client-timeout-ms") == 0 && i + 1 < argc) clientTimeoutMs = std::atoi(argv[++i]);
+    }
+    if (portBase <= 0 || portBase > 65000 || clientTimeoutMs < 0) {
+        std::fprintf(stderr, "--port-base takes a port up to 65000, --client-timeout-ms a non-negative number\n");
+        return 2;
     }
     if (!NetOptions::Parse(argc, argv, options, &error)) {
-        std::fprintf(stderr, "%s\nusage: %s [--event-log] [--encoding text|binary] [--delta on|off] [--keyframe N]\n",
+        std::fprintf(stderr, "%s\nusage: %s [--event-log] [--port-base N] [--client-timeout-ms MS] [--encoding text|binary] "
+                             "[--delta on|off] [--keyframe N]\n",
                      error.c_str(), argv[0]);
         return 2;
     }
@@ -34,9 +45,11 @@ int main(int argc, char **argv) {
     if (!engine.InitHeadless()) return 1;
 
     Server::Config config;
-    config.joinPort = kJoinPort;
-    config.worldPort = kWorldPort;
-    config.clientPortBase = kClientPortBase;
+    // Join, world and client ports keep their usual spacing from the base
+    config.joinPort = portBase;
+    config.worldPort = portBase + (kWorldPort - kJoinPort);
+    config.clientPortBase = portBase + (kClientPortBase - kJoinPort);
+    config.clientTimeoutMs = clientTimeoutMs;
     config.maxClients = kMaxPlayers;
     config.tickHz = 60;
     config.publishEverySteps = 1;

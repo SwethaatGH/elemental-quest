@@ -2,9 +2,14 @@
 
 namespace engine {
 JobSystem::JobSystem(int workerCount) {
+#ifdef __EMSCRIPTEN__
+    // No threads in a browser build: RunAndWait drains every job on the caller
+    workerCount = 0;
+#else
     if (workerCount < 1) {
         workerCount = 1;
     }
+#endif
     workers.reserve(static_cast<size_t>(workerCount));
     for (int i = 0; i < workerCount; ++i) {
         workers.emplace_back(&JobSystem::WorkerLoop, this);

@@ -1,0 +1,12 @@
+build/
+build-web/
+.web-deps/
+**/node_modules/
+writeup_images/
+screenshots/
+web/
+*.pdf
+*.tex
+.git/
+.github/
+**/.DS_Store
