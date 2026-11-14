@@ -1,0 +1,17 @@
+build/
+.DS_Store
+*.zip
+.vscode/
+compile_commands.json
+screenshot_*.png
+.claude/
+dev_notes/
+build-release/
+results-quick/
+results_run.log
+
+# Course write-ups (kept locally, not published)
+m4.tex
+smaniva4_GEF_M4.pdf
+engine/engine_m4_team.pdf
+writeup_images/
